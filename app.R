@@ -6,8 +6,8 @@ library(tidyverse)
 library(viridis)
 library(RColorBrewer)
 
-coronaCH <- read.csv("0.CoronaCH5.csv")
-coronaCanton <- read.csv("0.CoronaCanton10.csv")
+coronaCH <- read.csv("0.CoronaCH6.csv")
+coronaCanton <- read.csv("0.CoronaCanton11.csv")
 
 #Spatial data
 coronaSpatial <- read.csv("0.CoronaSpatial.csv")
@@ -49,10 +49,11 @@ lake_geo <- read_sf("g2s20.shp")
 #Data work
 coronaSpatial$KTNR <- as.numeric(coronaSpatial$KTNR)
 dat_merged <- merge(canton_geo, coronaSpatial, by="KTNR")
-dat_merged$CasPositifs <- as.numeric(dat_merged$CasPositifs)
-dat_merged$CasPositifsParTete <- as.numeric(dat_merged$CasPositifsParTete)
+dat_merged$CasPositifs22_3 <- as.numeric(dat_merged$CasPositifs22_3)
+dat_merged$CasPositifsParTete22_3 <- as.numeric(dat_merged$CasPositifsParTete22_3)
 
-htmlPresentation <- "htmlPresentation.html"
+htmlPresentation1 <- "Presentation1.html"
+htmlPresentation2 <- "Presentation2.html"
 htmlCantons <- "DescriptionCantons.html"
 htmlSuisse <- "DescriptionSuisse.html"
 
@@ -65,6 +66,8 @@ names(coronaCanton)[names(coronaCanton) == "beds"] <- "Lits d'hôpitaux"
 names(coronaCanton)[names(coronaCanton) == "bedsPerCapita"] <- "Lits par habitant"
 names(coronaCanton)[names(coronaCanton) == "tested_pos"] <- "Positifs"
 names(coronaCanton)[names(coronaCanton) == "TotalConfCases"] <- "Confirmés"
+names(coronaCanton)[names(coronaCanton) == "TotalCured"] <- "Total Guéris"
+names(coronaCanton)[names(coronaCanton) == "SortisDeHôpital"] <- "Sortis de l'hôpital"
 
 # Renaming columns in CoronaCH dataset
 names(coronaCH)[names(coronaCH) == "date"] <- "Date"
@@ -102,27 +105,30 @@ ui <- fluidPage(
                         choices =  unique(as.character(coronaCanton$Canton)),
                         selected = "AG", multiple = FALSE),
             
-            h5("Dernière mise à jour des données: 19:58 22/03/2020")
+            h5("Dernière mise à jour des données: 17:42 23/03/2020")
         ),
         
         mainPanel(
-            tabsetPanel(
+            tabsetPanel(type = "pills",
                 tabPanel("Introduction",
-                            includeHTML(htmlPresentation)
+                         fluidRow(
+                             includeHTML(htmlPresentation1),
+                             column(12, plotOutput("coronaSpatialParTete1")),
+                             includeHTML(htmlPresentation2)
+                         )
+                            
                          ),
                 tabPanel("Suisse",
                          fluidRow(
-                             h3("Vous trouverez ci-dessous quelques informations concernant l'évolution du COVID-19 pour toute la Suisse."),
                              includeHTML(htmlSuisse),
                              column(12, plotOutput("coronaSpatial")),
-                             column(12, plotOutput("coronaSpatialParTete")),
+                             column(12, plotOutput("coronaSpatialParTete2")),
                              column(12, plotOutput("coronaCasesCH")),
                              column(12, plotOutput("coronaCasesGraphDeathsCH")),
                              column(12, dataTableOutput("coronaCasesTableDeaths"))
                          )),
                 tabPanel("Canton", 
                          fluidRow(
-                             h3("Vous trouverez ci-dessous quelques informations concernant l'évolution du COVID-19 par canton."),
                              includeHTML(htmlCantons),
                              column(12, plotOutput("coronaCasesCanton")),
                              column(12, plotOutput("coronaCasesAll"))
@@ -175,13 +181,12 @@ server <- function(input, output) {
         ) +
             geom_sf(
                 mapping = aes(
-                    fill = CasPositifs,
+                    fill = CasPositifs22_3,
                 ),
                 color = "white",
                 size = 0.1
             ) +
-            scale_fill_continuous(high = "#1b2576", low = "#5ab7db",
-                                  labels = c("250", "500", "750", "1000"),
+            scale_fill_continuous(high = "#e53a0f", low = "#f4dcd5",
                                   name = "Cas positifs")+
             scale_size(guide = "legend"
             )+
@@ -198,25 +203,24 @@ server <- function(input, output) {
             ) +
             labs(x = NULL,
                  y = NULL,
-                 title = "Cas de coronavirus en Suisse",
-                 subtitle = "Nombre de personnes testées positives, état au 20 mars 2020") 
+                 title = "Nombre de personnes testées positives",
+                 subtitle = "Aperçu par canton, état au 22 mars 2020") 
     })   
     
     #Spatial map "cas positifs par tete"
-    output$coronaSpatialParTete <- renderPlot ({
+    output$coronaSpatialParTete1 <- output$coronaSpatialParTete2 <- renderPlot ({
         ggplot(
             data = dat_merged
         ) +
             geom_sf(
                 mapping = aes(
-                    fill = CasPositifsParTete,
+                    fill = CasPositifsParTete22_3,
                 ),
                 color = "white",
                 size = 0.1
             ) +
-            scale_fill_continuous(high = "#1b2576", low = "#5ab7db",
-                                  labels = c("0", "50", "100", "150", "200", "250"),
-                                  name = "Cas positifs")+
+            scale_fill_continuous(high = "#e53a0f", low = "#f4dcd5",
+                                  name = "Cas positifs par \n100'000 habitants")+
             scale_size(guide = "legend"
             )+
             geom_sf(
@@ -232,8 +236,8 @@ server <- function(input, output) {
             ) +
             labs(x = NULL,
                  y = NULL,
-                 title = "Cas de coronavirus en Suisse par 100'000 habitants",
-                 subtitle = "Nombre de personnes testées positives, état au 20 mars 2020") 
+                 title = "Nombre de personnes testées positives par 100'000 habitants",
+                 subtitle = "Aperçu par canton, état au 22 mars 2020") 
     }) 
     
     # Vue de tous les cas de corona en CH
@@ -269,11 +273,11 @@ server <- function(input, output) {
     output$tableau <- renderDataTable({
         # ajouter cas confirmés quand plus de données
         coronaCanton$Date <- format(coronaCanton$Date, format="%d.%m.%y")
-        coronaCanton[which(coronaCanton$Canton==input$Canton),c("Canton", "Date", "Positifs")]
+        coronaCanton[which(coronaCanton$Canton==input$Canton),c("Canton", "Date", "Positifs", "Hospitalisations", "Total Guéris", "Sortis de l'hôpital")]
     },
     options = list(searching=FALSE,
-                   bLengthChange=0,
-                   bInfo=0,
+                   lengthChange=0,
+                   info=0,
                    paging=FALSE),
     )
     
@@ -284,8 +288,8 @@ server <- function(input, output) {
         unique(tableauCantonal)
         
     },
-    options = list(bLengthChange=0,
-                   bInfo=0),
+    options = list(lengthChange=0,
+                   info=0),
     )
     
 
