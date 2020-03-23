@@ -1,11 +1,60 @@
 library(shiny)
 library(ggplot2)
 library(hrbrthemes)
+library(sf)
+library(tidyverse)
+library(viridis)
+library(RColorBrewer)
 
-coronaCH <- read.csv("0.CoronaCH.csv")
-coronaCanton <- read.csv("0.CoronaCanton.csv")
+coronaCH <- read.csv("0.CoronaCH5.csv")
+coronaCanton <- read.csv("0.CoronaCanton10.csv")
+
+#Spatial data
+coronaSpatial <- read.csv("0.CoronaSpatial.csv")
+coronaSpatial$KANTONSNUM[coronaSpatial$Canton == "ZH"] <- "1"
+coronaSpatial$KANTONSNUM[coronaSpatial$Canton == "BE"] <- "2"
+coronaSpatial$KANTONSNUM[coronaSpatial$Canton == "LU"] <- "3"
+coronaSpatial$KANTONSNUM[coronaSpatial$Canton == "UR"] <- "4"
+coronaSpatial$KANTONSNUM[coronaSpatial$Canton == "SZ"] <- "5"
+coronaSpatial$KANTONSNUM[coronaSpatial$Canton == "OW"] <- "6"
+coronaSpatial$KANTONSNUM[coronaSpatial$Canton == "NW"] <- "7"
+coronaSpatial$KANTONSNUM[coronaSpatial$Canton == "GL"] <- "8"
+coronaSpatial$KANTONSNUM[coronaSpatial$Canton == "ZG"] <- "9"
+coronaSpatial$KANTONSNUM[coronaSpatial$Canton == "FR"] <- "10"
+coronaSpatial$KANTONSNUM[coronaSpatial$Canton == "SO"] <- "11"
+coronaSpatial$KANTONSNUM[coronaSpatial$Canton == "BS"] <- "12"
+coronaSpatial$KANTONSNUM[coronaSpatial$Canton == "BL"] <- "13"
+coronaSpatial$KANTONSNUM[coronaSpatial$Canton == "SH"] <- "14"
+coronaSpatial$KANTONSNUM[coronaSpatial$Canton == "AI"] <- "15"
+coronaSpatial$KANTONSNUM[coronaSpatial$Canton == "AR"] <- "16"
+coronaSpatial$KANTONSNUM[coronaSpatial$Canton == "SG"] <- "17"
+coronaSpatial$KANTONSNUM[coronaSpatial$Canton == "GR"] <- "18"
+coronaSpatial$KANTONSNUM[coronaSpatial$Canton == "AG"] <- "19"
+coronaSpatial$KANTONSNUM[coronaSpatial$Canton == "TG"] <- "20"
+coronaSpatial$KANTONSNUM[coronaSpatial$Canton == "TI"] <- "21"
+coronaSpatial$KANTONSNUM[coronaSpatial$Canton == "VD"] <- "22"
+coronaSpatial$KANTONSNUM[coronaSpatial$Canton == "VS"] <- "23"
+coronaSpatial$KANTONSNUM[coronaSpatial$Canton == "NE"] <- "24"
+coronaSpatial$KANTONSNUM[coronaSpatial$Canton == "GE"] <- "25"
+coronaSpatial$KANTONSNUM[coronaSpatial$Canton == "JU"] <- "26"
+names(coronaSpatial )[names(coronaSpatial ) == "KANTONSNUM"] <- "KTNR"
+
+# read cantonal borders
+canton_geo <- read_sf("g2k20.shp")
+# read country borders
+country_geo <- read_sf("g2l20.shp")
+# read lakes
+lake_geo <- read_sf("g2s20.shp")
+
+#Data work
+coronaSpatial$KTNR <- as.numeric(coronaSpatial$KTNR)
+dat_merged <- merge(canton_geo, coronaSpatial, by="KTNR")
+dat_merged$CasPositifs <- as.numeric(dat_merged$CasPositifs)
+dat_merged$CasPositifsParTete <- as.numeric(dat_merged$CasPositifsParTete)
 
 htmlPresentation <- "htmlPresentation.html"
+htmlCantons <- "DescriptionCantons.html"
+htmlSuisse <- "DescriptionSuisse.html"
 
 # Renaming columns in CoronaCanton dataset
 names(coronaCanton)[names(coronaCanton) == "date"] <- "Date"
@@ -26,6 +75,8 @@ names(coronaCH)[names(coronaCH) == "beds"] <- "Lits d'hôpitaux"
 names(coronaCH)[names(coronaCH) == "bedsPerCapita"] <- "Lits par habitant"
 names(coronaCH)[names(coronaCH) == "tested_pos"] <- "Positifs"
 names(coronaCH)[names(coronaCH) == "TotalConfCases"] <- "Confirmés"
+names(coronaCH)[names(coronaCH) == "TotalDeaths"] <- "Décès"
+names(coronaCH)[names(coronaCH) == "TotalCured"] <- "Guéris"
 
 # Formating date in coronaCanton data so it shows properly in the tables + graphs
 coronaCanton$Date <- as.Date(coronaCanton$Date , format = "%d.%m.%y")
@@ -41,9 +92,7 @@ ui <- fluidPage(
     theme = "bootstrap.css",
     
     # App title ----
-    titlePanel(
-        h1("Situation du Coronavirus en Suisse", align="center")
-    ),
+    titlePanel("Situation du Coronavirus en Suisse"),
     
     sidebarLayout(
         
@@ -53,22 +102,28 @@ ui <- fluidPage(
                         choices =  unique(as.character(coronaCanton$Canton)),
                         selected = "AG", multiple = FALSE),
             
-            h5("Dernière mise à jour des données: 10:30 20/03/2020")
+            h5("Dernière mise à jour des données: 19:58 22/03/2020")
         ),
         
         mainPanel(
             tabsetPanel(
-                tabPanel("Introduction", includeHTML(htmlPresentation)),
+                tabPanel("Introduction",
+                            includeHTML(htmlPresentation)
+                         ),
                 tabPanel("Suisse",
                          fluidRow(
                              h3("Vous trouverez ci-dessous quelques informations concernant l'évolution du COVID-19 pour toute la Suisse."),
-                             helpText("4222 personnes positives et 43 décès."),
-                             column(12, plotOutput("coronaCasesCH"))
-                             
+                             includeHTML(htmlSuisse),
+                             column(12, plotOutput("coronaSpatial")),
+                             column(12, plotOutput("coronaSpatialParTete")),
+                             column(12, plotOutput("coronaCasesCH")),
+                             column(12, plotOutput("coronaCasesGraphDeathsCH")),
+                             column(12, dataTableOutput("coronaCasesTableDeaths"))
                          )),
                 tabPanel("Canton", 
                          fluidRow(
                              h3("Vous trouverez ci-dessous quelques informations concernant l'évolution du COVID-19 par canton."),
+                             includeHTML(htmlCantons),
                              column(12, plotOutput("coronaCasesCanton")),
                              column(12, plotOutput("coronaCasesAll"))
                          )
@@ -113,6 +168,74 @@ server <- function(input, output) {
                     axis.text.x = element_text(angle=45))
     })
     
+    #Spatial map "cas positifs"
+    output$coronaSpatial <- renderPlot ({
+        ggplot(
+            data = dat_merged
+        ) +
+            geom_sf(
+                mapping = aes(
+                    fill = CasPositifs,
+                ),
+                color = "white",
+                size = 0.1
+            ) +
+            scale_fill_continuous(high = "#1b2576", low = "#5ab7db",
+                                  labels = c("250", "500", "750", "1000"),
+                                  name = "Cas positifs")+
+            scale_size(guide = "legend"
+            )+
+            geom_sf(
+                data = canton_geo,
+                fill = "transparent",
+                color = "white",
+                size = 0.5
+            ) +
+            geom_sf(
+                data = lake_geo,
+                fill = "#D6F1FF",
+                color = "transparent"
+            ) +
+            labs(x = NULL,
+                 y = NULL,
+                 title = "Cas de coronavirus en Suisse",
+                 subtitle = "Nombre de personnes testées positives, état au 20 mars 2020") 
+    })   
+    
+    #Spatial map "cas positifs par tete"
+    output$coronaSpatialParTete <- renderPlot ({
+        ggplot(
+            data = dat_merged
+        ) +
+            geom_sf(
+                mapping = aes(
+                    fill = CasPositifsParTete,
+                ),
+                color = "white",
+                size = 0.1
+            ) +
+            scale_fill_continuous(high = "#1b2576", low = "#5ab7db",
+                                  labels = c("0", "50", "100", "150", "200", "250"),
+                                  name = "Cas positifs")+
+            scale_size(guide = "legend"
+            )+
+            geom_sf(
+                data = canton_geo,
+                fill = "transparent",
+                color = "white",
+                size = 0.5
+            ) +
+            geom_sf(
+                data = lake_geo,
+                fill = "#D6F1FF",
+                color = "transparent"
+            ) +
+            labs(x = NULL,
+                 y = NULL,
+                 title = "Cas de coronavirus en Suisse par 100'000 habitants",
+                 subtitle = "Nombre de personnes testées positives, état au 20 mars 2020") 
+    }) 
+    
     # Vue de tous les cas de corona en CH
     output$coronaCasesCH <- renderPlot({
         ggplot(subset(coronaCH, Canton == "CH"), aes(x=Date, y=Positifs, colour = Canton, group = Canton)) +
@@ -124,6 +247,23 @@ server <- function(input, output) {
                   axis.title.x = element_text(color="black", size=12, face="bold", hjust=0.5),
                   axis.title.y = element_text(color="black", size=12, face="bold", hjust=0.5),
                   axis.text.x = element_text(angle=45))
+    })
+    
+    # Vue de tous les morts en CH
+    output$coronaCasesGraphDeathsCH <- renderPlot({
+        ggplot(subset(coronaCH), aes(x=Date, y=Décès)) +
+            geom_line(color="#588c3e", size=2) +
+            theme_ipsum() +
+            ggtitle("Evolution des décès dûs \n au COVID-19 en Suisse") +
+            xlab("Date") + ylab("Nombre de personnes") + 
+            theme(plot.title = element_text(color="black", size=15, face="bold", hjust=0.5),
+                  axis.title.x = element_text(color="black", size=12, face="bold", hjust=0.5),
+                  axis.title.y = element_text(color="black", size=12, face="bold", hjust=0.5),
+                  axis.text.x = element_text(angle=45))
+    })
+    
+    output$coronaCasesTableDeaths <- renderDataTable({
+        coronaCH[,c('Date', 'Positifs', 'Décès', 'Guéris')]
     })
     
     output$tableau <- renderDataTable({

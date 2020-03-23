@@ -1,0 +1,13 @@
+name: Covid19
+title: Covid19
+username:
+account: covid19-suisse
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 1961322
+bundleId: 2911826
+url: https://covid19-suisse.shinyapps.io/Covid19/
+when: 1584954545.69266
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: 0.Corona_map.R|0.Corona.xlsx|manifest.R|README.md|spatial/app.R|Backup
