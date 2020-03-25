@@ -114,7 +114,7 @@ ui <- fluidPage(
                         choices =  unique(as.character(coronaCanton$Canton)),
                         selected = "AG", multiple = FALSE),
             
-            h5("Dernière mise à jour des données: 19:37 25/03/2020")
+            h5("Dernière mise à jour des données: 19:38 25/03/2020")
         ),
         
         mainPanel(
