@@ -9,8 +9,9 @@ library(RColorBrewer)
 library(plotly)
 library(shinythemes)
 
+# CSV impots
 coronaCH <- read.csv("0.CoronaCH8.csv")
-coronaCanton <- read.csv("0.CoronaCanton14.csv")
+coronaCanton <- read.csv("0.CoronaCanton16.csv")
 
 #Spatial data
 coronaSpatial <- read.csv("0.CoronaSpatial.csv")
@@ -70,6 +71,7 @@ names(coronaCanton)[names(coronaCanton) == "beds"] <- "Lits d'hôpitaux"
 names(coronaCanton)[names(coronaCanton) == "bedsPerCapita"] <- "Lits par habitant"
 names(coronaCanton)[names(coronaCanton) == "tested_pos"] <- "Positifs"
 names(coronaCanton)[names(coronaCanton) == "TotalConfCases"] <- "Confirmés"
+names(coronaCanton)[names(coronaCanton) == "TotalDeaths"] <- "Total Décès"
 names(coronaCanton)[names(coronaCanton) == "TotalCured"] <- "Total Guéris"
 names(coronaCanton)[names(coronaCanton) == "SortisDeHôpital"] <- "Sortis de l'hôpital"
 
@@ -105,17 +107,18 @@ ui <- fluidPage(
     
     # App title 
     titlePanel("Situation du Coronavirus en Suisse"),
+    h6(em("Dernière mise à jour des données: 22:39, 25/03/2020")),
     
-    sidebarLayout(
+    #sidebarLayout(
         
-        sidebarPanel(
-            helpText("Choisissez le canton que vous souhaitez visualiser sous forme de graphique ou tableau"),
-            selectInput(inputId = "Canton", label =  "Canton",
-                        choices =  unique(as.character(coronaCanton$Canton)),
-                        selected = "AG", multiple = FALSE),
-            
-            h5("Dernière mise à jour des données: 19:38 25/03/2020")
-        ),
+        #sidebarPanel(
+        #     helpText("Choisissez le canton que vous souhaitez visualiser sous forme de graphique ou tableau"),
+        #     selectInput(inputId = "Canton", label =  "Canton",
+        #                 choices =  unique(as.character(coronaCanton$Canton)),
+        #                 selected = "AG", multiple = FALSE),
+        #     
+        #     h5("Dernière mise à jour des données: 22:39 25/03/2020")
+        #),
         
         mainPanel(
             tabsetPanel(type = "pills",
@@ -130,25 +133,42 @@ ui <- fluidPage(
                 tabPanel("Suisse",
                          fluidRow(
                              htmlOutput("htmlSuisse"),
-                             column(12, plotOutput("coronaSpatial")),
-                             column(12, plotOutput("coronaSpatialParTete2")),
-                             column(12, plotOutput("coronaCasesCH")),
-                             column(12, plotOutput("coronaCasesGraphDeathsCH")),
-                             column(12, dataTableOutput("coronaCasesTableDeaths"))
+                             tabsetPanel(
+                                 tabPanel("Cartes",
+                                          fluidRow(
+                                              column(12, plotOutput("coronaSpatialParTete2")),
+                                              column(12, plotOutput("coronaSpatial"))
+                                          )),
+                                 tabPanel("Graphiques",
+                                          fluidRow(
+                                              column(12, plotOutput("coronaCasesCH")),
+                                              column(12, plotOutput("coronaCasesGraphDeathsCH"))
+                                          )),
+                                 tabPanel("Tableau",
+                                          dataTableOutput("coronaCasesTableDeaths")
+                                          )
+                             )
+                             
+                             
                          )),
                 tabPanel("Canton", 
                          fluidRow(
+                             helpText("Choisissez ci-dessous le canton que vous souhaitez visualiser:"),
+                             selectInput(inputId = "Canton", label =  "Canton",
+                                         choices =  unique(as.character(coronaCanton$Canton)),
+                                         selected = "AG", multiple = FALSE),
                              htmlOutput("htmlCanton"),
                              column(12, plotOutput("coronaCasesCanton")),
-                             column(12, plotOutput("coronaCasesAll"))
+                             #column(12, plotOutput("coronaCasesAll")), #this is removed and only have 1 graph with cases/100'000
+                             column(12, dataTableOutput("tableau"))
                          )
                 ),
-                tabPanel("Tableaux", dataTableOutput("tableau")),
-                tabPanel("Statistiques Cantonales", dataTableOutput("tableauCantonal"))
+                #tabPanel("Tableaux", dataTableOutput("tableau")), #no longer used..
+                tabPanel("Démographie", dataTableOutput("tableauDemographique"))
             )
             
         )
-    )
+    #)
 )
 
 # Define server logic
@@ -157,18 +177,18 @@ server <- function(input, output) {
     # Plot de tous les cas du canton choisi
     output$coronaCasesCanton <- renderPlot ({
         #corona$Date <- format(corona$Date, format="%d.%m")
-        ggplot(subset(coronaCanton, coronaCanton$Canton==input$Canton), aes(x=Date, y=Positifs, colour = Canton, group = Canton)) +
+        ggplot(subset(coronaCanton, coronaCanton$Canton==input$Canton), aes(x=Date, y=posPer100k, colour = Canton, group = Canton)) +
             geom_line(color="#e61523", size=2) +
-            theme_economist() +
-            ggtitle(label = "Evolution des personnes positives au COVID-19", subtitle = paste("Canton: ", input$Canton, sep='')) +
+            theme_ipsum() +
+            ggtitle(label = "Evolution des personnes positives au COVID-19 par 100'000 habitants", subtitle = paste("Canton: ", input$Canton, sep='')) +
             xlab("Date") + ylab("Nombre de personnes") + 
-            theme(plot.title = element_text(color="black", size=15, face="bold", hjust=0.5),
-                    plot.subtitle = element_text(color="red", size=14, face="bold.italic"),
-                    axis.title.x = element_text(color="black", size=12, face="bold", hjust=0.5),
-                    axis.title.y = element_text(color="black", size=12, face="bold", hjust=0.5),
-                    axis.text.x = element_text(angle=45)
-                  #panel.background = element_rect(fill="white"),
-                  #plot.background = element_rect(fill="white")
+            theme(plot.title = element_text(color="white", size=15, face="bold", hjust=0.5),
+                  plot.subtitle = element_text(color="red", size=14, face="bold.italic"),
+                  axis.title.x = element_text(color="white", size=12, face="bold", hjust=0.5),
+                  axis.title.y = element_text(color="white", size=12, face="bold", hjust=0.5),
+                  axis.text.x = element_text(angle = 45, color = "white"),
+                  axis.text.y = element_text(color = "white"),
+                  plot.background = element_rect(fill = "#2b3e50", color = NA)
             )
     })
     
@@ -183,7 +203,7 @@ server <- function(input, output) {
                   plot.subtitle = element_text(color="blue", size=14, face="bold.italic"),
                   axis.title.x = element_text(color="black", size=12, face="bold", hjust=0.5),
                   axis.title.y = element_text(color="black", size=12, face="bold", hjust=0.5),
-                axis.text.x = element_text(angle=45),
+                  axis.text.x = element_text(angle=45),
             )
     })
     
@@ -220,17 +240,20 @@ server <- function(input, output) {
                     )+
             theme_tufte() +
             theme(
-                plot.background = element_rect(fill = "#537d93"),
-                  axis.text.x = element_blank(),
-                  axis.ticks.x = element_blank(),
-                  axis.text.y = element_blank(),
-                  axis.ticks.y = element_blank()
+                plot.background = element_rect(fill = "#2b3e50", color = NA),
+                axis.text.x = element_blank(),
+                axis.ticks.x = element_blank(),
+                axis.text.y = element_blank(),
+                axis.ticks.y = element_blank(),
+                plot.title = element_text(color="white"),
+                plot.subtitle = element_text(color="white"),
+                legend.title = element_text(color="white"),
+                legend.text = element_text(color="white"),
                 )
             }, bg="#2b3e50", execOnResize=T)
     
     #Spatial map "cas positifs par tete"
     output$coronaSpatialParTete1 <- output$coronaSpatialParTete2 <- renderPlot ({
-        par(mar=c(0,0,0,0))
         ggplot(
             data = dat_merged
         ) +
@@ -249,7 +272,7 @@ server <- function(input, output) {
                 data = canton_geo,
                 fill = "transparent",
                 color = "white",
-                size = 0.5
+                size = 0.1
             ) +
             geom_sf(
                 data = lake_geo,
@@ -262,42 +285,55 @@ server <- function(input, output) {
                  subtitle = "Aperçu par canton, état au 24 mars 2020") +
             theme_tufte() +
             theme(
-                plot.background = element_rect(fill = "#537d93"),
+                plot.background = element_rect(fill = "#2b3e50", color = NA),
                 axis.text.x = element_blank(),
                 axis.ticks.x = element_blank(),
                 axis.text.y = element_blank(),
-                axis.ticks.y = element_blank()
-                )
+                axis.ticks.y = element_blank(),
+                plot.title = element_text(color="white"),
+                plot.subtitle = element_text(color="white"),
+                legend.title = element_text(color="white"),
+                legend.text = element_text(color="white"),
+            )
         
     }, bg="#2b3e50", execOnResize=T) 
+    
     
     # Vue de tous les cas de corona en CH
     output$coronaCasesCH <- renderPlot({
         ggplot(subset(coronaCH, Canton == "CH"), aes(x=Date, y=Positifs, colour = Canton, group = Canton)) +
             geom_line(color="#588c3e", size=2) +
-            theme_economist() +
+            theme_ipsum() +
             ggtitle("Evolution des personnes positives \n au COVID-19 en Suisse") +
             xlab("Date") + ylab("Nombre de personnes") + 
-            theme(plot.title = element_text(color="black", size=15, face="bold", hjust=0.5),
-                  axis.title.x = element_text(color="black", size=12, face="bold", hjust=0.5),
-                  axis.title.y = element_text(color="black", size=12, face="bold", hjust=0.5),
-                  axis.text.x = element_text(angle=45))
+            theme(plot.title = element_text(color="white", size=15, face="bold", hjust=0.5),
+                  plot.subtitle = element_text(color="red", size=14, face="bold.italic"),
+                  axis.title.x = element_text(color="white", size=12, face="bold", hjust=0.5),
+                  axis.title.y = element_text(color="white", size=12, face="bold", hjust=0.5),
+                  axis.text.x = element_text(angle = 45, color = "white"),
+                  axis.text.y = element_text(color = "white"),
+                  plot.background = element_rect(fill = "#2b3e50", color = NA)
+            )
     })
     
     # Plot de tous les morts en CH
     output$coronaCasesGraphDeathsCH <- renderPlot({
         ggplot(subset(coronaCH), aes(x=Date, y=Décès)) +
             geom_line(color="#588c3e", size=2) +
-            theme_economist() +
+            theme_ipsum() +
             ggtitle("Evolution des décès dûs \n au COVID-19 en Suisse") +
             xlab("Date") + ylab("Nombre de personnes") + 
-            theme(plot.title = element_text(color="black", size=15, face="bold", hjust=0.5),
-                  axis.title.x = element_text(color="black", size=12, face="bold", hjust=0.5),
-                  axis.title.y = element_text(color="black", size=12, face="bold", hjust=0.5),
-                  axis.text.x = element_text(angle=45))
+            theme(plot.title = element_text(color="white", size=15, face="bold", hjust=0.5),
+                  plot.subtitle = element_text(color="red", size=14, face="bold.italic"),
+                  axis.title.x = element_text(color="white", size=12, face="bold", hjust=0.5),
+                  axis.title.y = element_text(color="white", size=12, face="bold", hjust=0.5),
+                  axis.text.x = element_text(angle = 45, color = "white"),
+                  axis.text.y = element_text(color = "white"),
+                  plot.background = element_rect(fill = "#2b3e50", color = NA)
+            )
     })
     
-    # Datatalee cas corona en CH
+    # Datatable cas corona en CH
     output$coronaCasesTableDeaths <- renderDataTable({
         coronaCH[,c('Date', 'Positifs', 'Décès', 'Guéris')]
     })
@@ -306,7 +342,7 @@ server <- function(input, output) {
     output$tableau <- renderDataTable({
         # ajouter cas confirmés quand plus de données
         coronaCanton$Date <- format(coronaCanton$Date, format="%d.%m.%y")
-        coronaCanton[which(coronaCanton$Canton==input$Canton),c("Canton", "Date", "Positifs", "Hospitalisations", "Total Guéris", "Sortis de l'hôpital")]
+        coronaCanton[which(coronaCanton$Canton==input$Canton),c("Date", "Positifs", "Total Décès", "Total Guéris")]
     },
     options = list(searching=FALSE,
                    lengthChange=0,
@@ -316,7 +352,7 @@ server <- function(input, output) {
     
 
     # datatable with cantonal data
-    output$tableauCantonal <- renderDataTable({
+    output$tableauDemographique <- renderDataTable({
         #tableauCantonal <- corona[which(corona$Canton==input$Canton), c("Canton", "Population", "Population > 65ans", "Lits", "Lits par habitant")]
         tableauCantonal <- coronaCanton[, c("Canton", "Population", "Population > 65ans", "Lits d'hôpitaux", "Lits par habitant")]
         unique(tableauCantonal)
